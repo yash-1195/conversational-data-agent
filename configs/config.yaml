@@ -1,0 +1,21 @@
+llm:
+  model_name: "gpt-4o"
+  temperature: 0.0
+  max_tokens: 2048
+  max_tool_retries: 3
+  max_context_turns: 10
+
+agent:
+  max_plan_attempts: 3
+
+execution:
+  timeout_s: 30
+
+logging:
+  verbosity: "INFO"
+  log_to_file: false
+
+data:
+  max_upload_size_mb: 50
+  max_row_limit: 500000
+  on_violation: "reject"
