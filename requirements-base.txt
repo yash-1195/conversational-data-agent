@@ -1,0 +1,13 @@
+# Core config & validation
+pyyaml==6.0.3
+pydantic==2.10.6
+
+# Experiment tracking
+mlflow==2.22.0
+
+# Data (needed early for schema in config validation)
+pandas==2.3.3
+openpyxl==3.1.5
+
+# Environment
+python-dotenv==1.1.0
