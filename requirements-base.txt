@@ -5,6 +5,9 @@ pydantic==2.10.6
 # Experiment tracking
 mlflow==2.22.0
 
+# Testing modules
+pytest==9.0.2
+
 # Data (needed early for schema in config validation)
 pandas==2.3.3
 openpyxl==3.1.5

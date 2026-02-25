@@ -1,6 +1,5 @@
 # This file is generated (pip freeze). Do not edit manually.
 # Update requirements-base.txt, then recreate env and regenerate requirements.txt.
-
 alembic==1.18.4
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -33,6 +32,7 @@ greenlet==3.3.2
 h11==0.16.0
 idna==3.11
 importlib_metadata==8.7.1
+iniconfig==2.3.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
 joblib==1.5.3
@@ -51,6 +51,7 @@ opentelemetry-semantic-conventions==0.60b1
 packaging==24.2
 pandas==2.3.3
 pillow==12.1.1
+pluggy==1.6.0
 protobuf==6.33.5
 pyarrow==19.0.1
 pyasn1==0.6.2
@@ -58,7 +59,9 @@ pyasn1_modules==0.4.2
 pycparser==3.0
 pydantic==2.10.6
 pydantic_core==2.27.2
+Pygments==2.19.2
 pyparsing==3.3.2
+pytest==9.0.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.0
 pytz==2025.2
