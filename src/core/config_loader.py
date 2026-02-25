@@ -58,6 +58,8 @@ class AppConfig(BaseModel):
 
 def load_config(path: str = "configs/config.yaml") -> AppConfig:
     config_path = Path(path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path.resolve()}")
     with open(config_path, "r") as f:
         raw = yaml.safe_load(f)
 

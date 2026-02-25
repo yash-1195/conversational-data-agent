@@ -15,19 +15,19 @@ class ExperimentLogger:
         self.end_run()
         return False  # do not suppress exceptions
 
-    def start_run(self, run_name: str = None):
+    def start_run(self, run_name: str | None = None):
         if mlflow.active_run():
             mlflow.end_run()
-        self.run = mlflow.start_run(run_name=run_name)
+        self.run = mlflow.start_run(run_name=run_name)  # type: ignore[arg-type]
 
     def log_params(self, params: dict):
         safe = {k: str(v) for k, v in params.items()}
         mlflow.log_params(safe)
 
     def log_metrics(self, metrics: dict):
-        numeric = {k: v for k, v in metrics.items() if isinstance(v, (int, float))}
+        numeric = {str(k): float(v) for k, v in metrics.items() if isinstance(v, (int, float))}
         if numeric:
-            mlflow.log_metrics(numeric)
+            mlflow.log_metrics(numeric)  # type: ignore[arg-type]
 
     def log_artifact(self, file_path: str):
         path = Path(file_path)
