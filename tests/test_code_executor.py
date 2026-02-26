@@ -14,7 +14,7 @@ import pandas as pd
 import pytest
 
 from src.agent.tools.code_executor import (
-    FORBIDDEN_MODULES,
+    ALLOWED_MODULES,
     ExecutionResult,
     ExecutionStatus,
     _check_forbidden_imports,
@@ -93,11 +93,28 @@ class TestCheckForbiddenImports:
         assert _check_forbidden_imports(code) is None
 
     def test_all_forbidden_modules_detected(self):
-        """Every module in FORBIDDEN_MODULES should be caught."""
-        for module in FORBIDDEN_MODULES:
+        """Any module not in ALLOWED_MODULES should be caught."""
+        unlisted = ["os", "sys", "subprocess", "socket", "ctypes", "shutil", "requests"]
+        for module in unlisted:
             code = f"import {module}\nresult = None"
             result = _check_forbidden_imports(code)
             assert result is not None, f"Expected '{module}' to be caught but wasn't"
+
+    def test_detects_exec_call(self):
+        code = "exec('import os'); result = None"
+        assert _check_forbidden_imports(code) is not None
+
+    def test_detects_eval_call(self):
+        code = "result = eval('1 + 1')"
+        assert _check_forbidden_imports(code) is not None
+
+    def test_detects_dunder_import(self):
+        code = "result = __import__('os').getcwd()"
+        assert _check_forbidden_imports(code) is not None
+
+    def test_allowed_module_not_flagged(self):
+        code = "import re\nresult = re.findall(r'\\d+', '123abc')"
+        assert _check_forbidden_imports(code) is None
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +176,22 @@ class TestExecuteCodeSuccess:
         assert res.status == ExecutionStatus.SUCCESS
         assert "name" in res.result
         assert "score" in res.result
+
+    def test_dict_literal_in_code(self, tmp_path):
+        """Curly braces in user code must not corrupt the runner script."""
+        df_path = _simple_df(tmp_path)
+        code = "mapping = {'A': 1, 'B': 2}\nresult = df['category'].map(mapping).tolist()"
+        res = execute_code(code, df_path)
+        assert res.status == ExecutionStatus.SUCCESS
+        assert res.result == [1, 2, 1]
+
+    def test_fstring_in_code(self, tmp_path):
+        """f-strings in user code must not corrupt the runner script."""
+        df_path = _simple_df(tmp_path)
+        code = "result = f\"Row count: {len(df)}\""
+        res = execute_code(code, df_path)
+        assert res.status == ExecutionStatus.SUCCESS
+        assert res.result == "Row count: 3"
 
 
 # ---------------------------------------------------------------------------

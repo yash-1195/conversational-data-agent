@@ -1,1 +1,1 @@
-from .code_executor import execute_code, ExecutionResult, ExecutionStatus, FORBIDDEN_MODULES
+from .code_executor import execute_code, ExecutionResult, ExecutionStatus, ALLOWED_MODULES

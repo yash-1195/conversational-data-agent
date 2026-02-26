@@ -6,9 +6,8 @@ import re
 import subprocess
 import sys
 import tempfile
-import textwrap
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -21,9 +20,15 @@ class ExecutionStatus(Enum):
     MISSING_RESULT = "missing_result"
 
 
-FORBIDDEN_MODULES = {"os", "sys", "subprocess", "socket", "shutil", "importlib",
-                     "builtins", "ctypes", "multiprocessing", "threading", "signal",
-                     "pty", "atexit", "gc"}
+ALLOWED_MODULES = frozenset({
+    "pandas", "numpy", "matplotlib", "plotly",
+    "math", "statistics", "datetime", "collections",
+    "itertools", "functools", "re", "json", "string",
+})
+
+_DANGEROUS_CALLS = frozenset({"__import__", "exec", "eval", "compile"})
+
+_MAX_RESULT_BYTES = 50 * 1024 * 1024  # 50 MB
 
 
 @dataclass
@@ -39,25 +44,36 @@ class ExecutionResult:
 
 def _check_forbidden_imports(code: str) -> str | None:
     """
-    Parse the code as AST and return the first forbidden module name found,
-    or None if clean. Catches both `import os` and `from os import path`.
+    Parse the code as AST.
+    Rejects any import whose root module is not in ALLOWED_MODULES, and
+    any call to __import__, exec, eval, or compile (dynamic import bypass).
+    Returns a human-readable violation string, or None if clean.
     """
     try:
         tree = ast.parse(code)
     except SyntaxError:
-        return None  # syntax errors are caught at runtime, not here
+        return None  # syntax errors are caught at runtime
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 root = alias.name.split(".")[0]
-                if root in FORBIDDEN_MODULES:
+                if root not in ALLOWED_MODULES:
                     return alias.name
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             root = module.split(".")[0]
-            if root in FORBIDDEN_MODULES:
+            if root not in ALLOWED_MODULES:
                 return module
+        elif isinstance(node, ast.Call):
+            func = node.func
+            name = None
+            if isinstance(func, ast.Name):
+                name = func.id
+            elif isinstance(func, ast.Attribute):
+                name = func.attr
+            if name in _DANGEROUS_CALLS:
+                return f"{name}() call"
 
     return None
 
@@ -82,48 +98,46 @@ def execute_code(code: str, dataframe_pickle_path: str, timeout_s: int = 30) -> 
             forbidden_module=forbidden,
             error_message=f"Import of '{forbidden}' is not permitted in the sandbox.",
             retry_instruction=(
-                f"Your code attempted to import '{forbidden}', which is forbidden. "
-                "Do not import os, sys, subprocess, socket, or any stdlib module "
-                "outside of pandas, numpy, matplotlib, and plotly. Rewrite the code "
-                "without that import."
+                f"Your code attempted '{forbidden}', which is not permitted in the sandbox. "
+                f"Only these imports are allowed: {', '.join(sorted(ALLOWED_MODULES))}. "
+                "Rewrite the code using only those libraries."
             )
         )
 
-    # Step 2: build the runner script
-    # The runner loads df from the pickle path, executes user code,
-    # then pickles `result` to a known output path.
-    runner_template = textwrap.dedent("""
-        import pickle, traceback, sys
-        import pandas as pd
-        import numpy as np
-
-        # Load the dataframe
-        with open({df_path!r}, "rb") as f:
-            df = pickle.load(f)
-
-        # --- user code start ---
-        {user_code}
-        # --- user code end ---
-
-        # Serialise result
-        try:
-            with open({out_path!r}, "wb") as f:
-                pickle.dump(result, f)
-        except NameError:
-            sys.exit(2)  # exit code 2 = result not defined
-    """)
-
+    # Step 2: build the runner script.
+    # Built by list-join rather than str.format() so that { } characters
+    # in user code (f-strings, dicts, sets) cannot corrupt the script.
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         out_path = tmp / "result.pkl"
         script_path = tmp / "runner.py"
 
-        runner_script = runner_template.format(
-            df_path=str(dataframe_pickle_path),
-            user_code=code.strip(),
-            out_path=str(out_path),
-        )
-
+        runner_lines = [
+            "import pickle",
+            "import sys",
+            "import pandas as pd",
+            "import numpy as np",
+            "",
+            f"with open({repr(str(dataframe_pickle_path))}, 'rb') as _f:",
+            "    df = pickle.load(_f)",
+            "",
+            "# --- user code start ---",
+            code.strip(),
+            "# --- user code end ---",
+            "",
+            "try:",
+            "    _result_bytes = pickle.dumps(result)",
+            "except NameError:",
+            "    sys.exit(42)",
+            "",
+            f"if len(_result_bytes) > {_MAX_RESULT_BYTES}:",
+            "    print('Result too large. Reduce or summarise the output.', file=sys.stderr)",
+            "    sys.exit(1)",
+            "",
+            f"with open({repr(str(out_path))}, 'wb') as _f:",
+            "    _f.write(_result_bytes)",
+        ]
+        runner_script = "\n".join(runner_lines)
         script_path.write_text(runner_script, encoding="utf-8")
 
         # Step 3: run subprocess
@@ -149,8 +163,8 @@ def execute_code(code: str, dataframe_pickle_path: str, timeout_s: int = 30) -> 
         stdout = proc.stdout.strip()
         stderr = proc.stderr.strip()
 
-        # Exit code 2 = result variable was never defined
-        if proc.returncode == 2:
+        # Exit code 42 = result variable was never defined
+        if proc.returncode == 42:
             return ExecutionResult(
                 status=ExecutionStatus.MISSING_RESULT,
                 stdout=stdout,
@@ -171,7 +185,7 @@ def execute_code(code: str, dataframe_pickle_path: str, timeout_s: int = 30) -> 
                 status=ExecutionStatus.RUNTIME_ERROR,
                 stdout=stdout,
                 stderr=safe_stderr,
-                error_message=f"Code raised an error during execution.",
+                error_message="Code raised an error during execution.",
                 retry_instruction=(
                     f"Your code raised the following error:\n{safe_stderr}\n"
                     "Fix the error and try again. If a column name is wrong, check "
