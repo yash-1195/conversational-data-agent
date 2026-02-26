@@ -1,6 +1,6 @@
 from enum import Enum
 from pathlib import Path
-
+import os
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -18,10 +18,23 @@ class OnViolation(str, Enum):
 class LLMConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     model_name: str
+    provider: str
+    base_url: str
+    api_key_env_var: str
     temperature: float = Field(ge=0.0, le=2.0)
     max_tokens: int = Field(gt=0)
     max_tool_retries: int = Field(ge=1)
     max_context_turns: int = Field(ge=1)
+
+    @property
+    def api_key(self) -> str:
+        key = os.getenv(self.api_key_env_var)
+        if not key:
+            raise EnvironmentError(
+                f"Environment variable '{self.api_key_env_var}' is not set. "
+                f"Add it to your .env file."
+            )
+        return key
 
 
 class AgentConfig(BaseModel):

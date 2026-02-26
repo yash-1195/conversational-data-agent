@@ -24,7 +24,10 @@ def _make_config(
     """Build a minimal AppConfig for testing."""
     return AppConfig(
         llm=LLMConfig(
-            model_name="gpt-4o",
+            model_name="gemini-2.5-flash",
+            provider="google",
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key_env_var="GOOGLE_API_KEY",
             temperature=0.0,
             max_tokens=2048,
             max_tool_retries=3,
