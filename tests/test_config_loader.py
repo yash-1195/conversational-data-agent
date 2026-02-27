@@ -4,6 +4,3 @@ def test_config_loads():
     config = load_config()
     assert config.llm.temperature >= 0.0
     assert config.data.max_upload_size_mb == 50
-    print("Config loaded successfully:", config)
-
-test_config_loads()

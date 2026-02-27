@@ -295,18 +295,18 @@ class TestExecuteCodeRuntimeError:
         code = "result = 1 / 0"
         res = execute_code(code, df_path)
         assert res.status == ExecutionStatus.RUNTIME_ERROR
-        # Must not expose temp directory paths
-        assert "/tmp" not in res.error_message
-        assert "runner.py" not in res.error_message
+        # Temp directory paths must be sanitised from stderr and retry_instruction
+        # (error_message is a hardcoded string and never contains paths)
+        assert "runner.py" not in res.stderr
+        assert "runner.py" not in res.retry_instruction
 
     def test_stderr_is_sanitised(self, tmp_path):
         df_path = _simple_df(tmp_path)
         code = "result = df['bad_col']"
         res = execute_code(code, df_path)
-        assert "/tmp" not in res.stderr
-        # Sanitised path label is acceptable
-        if "generated_code.py" in res.stderr:
-            assert "runner.py" not in res.stderr
+        # runner.py must be replaced with the safe label regardless of OS temp dir format
+        assert "runner.py" not in res.stderr
+        assert "runner.py" not in res.retry_instruction
 
     def test_runtime_error_retry_instruction_includes_error(self, tmp_path):
         df_path = _simple_df(tmp_path)

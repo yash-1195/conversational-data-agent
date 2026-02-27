@@ -1,18 +1,24 @@
+import pytest
 from src.core.experiment_logger import ExperimentLogger
 
-def test_logger():
-    logger = ExperimentLogger(experiment_name="test-experiment")
+
+def test_logger(tmp_path):
+    logger = ExperimentLogger(
+        experiment_name="test-experiment",
+        tracking_uri=f"file:{tmp_path}",
+    )
     logger.start_run(run_name="test-run")
     logger.log_params({"model": "gpt-4o", "temperature": 0.0})
     logger.log_metrics({"latency": 1.23, "retries": 0})
     logger.log_tags({"status": "success"})
     logger.end_run()
-    print("ExperimentLogger test passed.")
 
-test_logger()
 
-def test_question_run_schema():
-    logger = ExperimentLogger(experiment_name="test-schema")
+def test_question_run_schema(tmp_path):
+    logger = ExperimentLogger(
+        experiment_name="test-schema",
+        tracking_uri=f"file:{tmp_path}",
+    )
     logger.start_question_run(
         question_id="q_001",
         question_text="What is the average sales by region?",
@@ -32,6 +38,3 @@ def test_question_run_schema():
         latency_ms=843.5,
         total_attempts=2,
     )
-    print("Schema test passed.")
-
-test_question_run_schema()
