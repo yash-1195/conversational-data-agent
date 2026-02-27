@@ -118,9 +118,10 @@ _DATE_PATTERNS = [
 # Minimum fraction of non-null values that must match a date pattern
 _DATE_PATTERN_MIN_FRACTION = 0.80
 
-# Minimum fraction of non-null rows that must be of a different type
-# before a column is flagged as having mixed types
-_MIXED_TYPE_THRESHOLD = 0.05
+# Symmetric boundary: flag a column as mixed-type if numeric_frac falls in
+# the range (_MIXED_TYPE_MIN_FRACTION, 1 - _MIXED_TYPE_MIN_FRACTION),
+# i.e. neither fully numeric nor fully non-numeric.
+_MIXED_TYPE_MIN_FRACTION = 0.05
 
 
 class DataProfiler:
@@ -251,7 +252,7 @@ class DataProfiler:
         numeric_frac = numeric_mask.sum() / len(non_null)
 
         # Flag if neither fully numeric nor fully non-numeric
-        return _MIXED_TYPE_THRESHOLD < numeric_frac < (1.0 - _MIXED_TYPE_THRESHOLD)
+        return _MIXED_TYPE_MIN_FRACTION < numeric_frac < (1.0 - _MIXED_TYPE_MIN_FRACTION)
 
     # ------------------------------------------------------------------
     # Dataset-level flags
