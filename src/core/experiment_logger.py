@@ -9,6 +9,7 @@ class ExperimentLogger:
         self.run = None
 
     def __enter__(self):
+        self.start_run()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
