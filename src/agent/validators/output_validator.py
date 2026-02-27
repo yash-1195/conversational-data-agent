@@ -147,11 +147,19 @@ def _check_shape_plausibility(result: Any, question: str) -> str | None:
 
     # Question strongly implies a plot but result is not a figure
     if _question_implies_plot(question):
-        if _MATPLOTLIB_AVAILABLE and not isinstance(result, _mpl_figure.Figure):
+        if _MATPLOTLIB_AVAILABLE:
+            if not isinstance(result, _mpl_figure.Figure):
+                return (
+                    "The question asks for a chart or plot, but `result` is not a "
+                    f"matplotlib Figure (got {type(result).__name__}). "
+                    "Create a matplotlib figure and assign it to `result`."
+                )
+        elif _is_scalar(result) or isinstance(result, (pd.DataFrame, pd.Series)):
+            # matplotlib not installed — still flag obviously wrong result types
             return (
-                "The question asks for a chart or plot, but `result` is not a "
-                f"matplotlib Figure (got {type(result).__name__}). "
-                "Create a matplotlib figure and assign it to `result`."
+                "The question asks for a chart or plot, but `result` is a "
+                f"{type(result).__name__}. Create a matplotlib figure and assign "
+                "it to `result` (e.g. `fig, ax = plt.subplots(); ...; result = fig`)."
             )
 
     # Question strongly implies a scalar but result is a non-trivial DataFrame or Series

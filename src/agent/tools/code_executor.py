@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 
 class ExecutionStatus(Enum):
@@ -37,12 +37,12 @@ class ExecutionResult:
     result: Any = None               # the value of `result` variable if successful
     stdout: str = ""
     stderr: str = ""
-    forbidden_module: str | None = None   # populated if FORBIDDEN_IMPORT
+    forbidden_module: Optional[str] = None   # populated if FORBIDDEN_IMPORT
     error_message: str = ""              # human-readable, safe to surface to user
     retry_instruction: str = ""          # appended to prompt on retry
 
 
-def _check_forbidden_imports(code: str) -> str | None:
+def _check_forbidden_imports(code: str) -> Optional[str]:
     """
     Parse the code as AST.
     Rejects any import whose root module is not in ALLOWED_MODULES, and
@@ -115,6 +115,8 @@ def execute_code(code: str, dataframe_pickle_path: str, timeout_s: int = 30) -> 
         runner_lines = [
             "import pickle",
             "import sys",
+            "import matplotlib",
+            "matplotlib.use('Agg')  # prevent display/hang in headless subprocess",
             "import pandas as pd",
             "import numpy as np",
             "",
@@ -216,6 +218,7 @@ def execute_code(code: str, dataframe_pickle_path: str, timeout_s: int = 30) -> 
 
 def _sanitise_traceback(stderr: str) -> str:
     """Remove temp directory paths from tracebacks before surfacing to user."""
-    # Replace paths like /tmp/tmpXXXXX/runner.py with runner.py
+    # Replace paths like /tmp/tmpXXXXX/runner.py (Unix) or
+    # C:\Users\...\Temp\tmpXXXXX\runner.py (Windows) with a safe label.
     cleaned = re.sub(r'File ".*?runner\.py"', 'File "generated_code.py"', stderr)
     return cleaned
