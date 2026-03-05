@@ -10,7 +10,9 @@ to failure_history — the plan node reads both to craft a better prompt.
 Design notes:
 - All fields have defaults so nodes can be tested in isolation without
   constructing a fully-populated state.
-- `dataframe_pickle_path` is set once at graph entry and never changed.
+- `dataframe_pickle_path` and `profile` are set once at graph entry and
+  never changed. They are the two halves of the dataset context: the path
+  for code execution, the profile for prompt assembly.
 - `conversation_history` holds the compressed + recent turns injected
   into the prompt by the context manager. It is NOT the raw chat log.
 - `final_answer` is only populated by the respond node; all other nodes
@@ -21,8 +23,11 @@ from __future__ import annotations
 
 from typing import Literal, Optional, TypedDict
 
+from openai.types.chat import ChatCompletionMessageParam
+
 from src.agent.tools.code_executor import ExecutionResult
 from src.agent.validators.output_validator import ValidationOutcome
+from src.ingestion.profiler import DataProfile
 
 
 # total=True (default): every key is required. All keys are always set by
@@ -38,9 +43,16 @@ class AgentState(TypedDict):
     # The user's natural language question for this turn
     question: str
 
-    # Absolute path to the pickled DataFrame on disk
-    # Set once by the graph entry point, never mutated
+    # Absolute path to the pickled DataFrame on disk.
+    # Set once by the graph entry point, never mutated.
+    # Used by the execute node to load df into the sandbox.
     dataframe_pickle_path: str
+
+    # DataProfile for the loaded dataset.
+    # Set once at graph entry alongside dataframe_pickle_path.
+    # Used by the plan node to build the system prompt each turn.
+    # DataProfile is a dataclass and is safe to carry in the state dict.
+    profile: DataProfile
 
     # ------------------------------------------------------------------
     # Plan node outputs
@@ -67,19 +79,20 @@ class AgentState(TypedDict):
     # Retry tracking (shared between evaluate and plan)
     # ------------------------------------------------------------------
 
-    # Number of plan+execute+evaluate cycles completed so far (0-indexed)
+    # Number of plan+execute+evaluate cycles completed so far (0-indexed).
+    # Incremented by evaluate on each failure before routing back to plan.
     attempt_count: int
 
-    # Ordered list of (attempt_index, failure_type_str, retry_instruction)
-    # The plan node appends the latest entry to its prompt on each retry
+    # Ordered list of (attempt_index, failure_type_str, retry_instruction).
+    # The plan node reads this to build the retry context section of the prompt.
     failure_history: list[tuple[int, str, str]]
 
     # ------------------------------------------------------------------
     # Clarification (set by plan node before code generation)
     # ------------------------------------------------------------------
 
-    # If True, the agent surfaced a clarifying question this turn
-    # and did not attempt code generation
+    # If True, the plan node detected ambiguity and did not attempt code
+    # generation. The graph routes directly from plan to respond.
     needs_clarification: bool
 
     # The clarifying question shown to the user (empty if not needed)
@@ -94,7 +107,7 @@ class AgentState(TypedDict):
     final_answer: Optional[str]
 
     # The type of answer produced. Empty string = not yet determined.
-    # Used for MLflow logging.
+    # Used for MLflow logging and ContextManager compression prefix.
     answer_type: Literal["table", "plot", "text", "error", "clarification", ""]
 
     # ------------------------------------------------------------------
@@ -102,9 +115,9 @@ class AgentState(TypedDict):
     # ------------------------------------------------------------------
 
     # Compressed + windowed conversation history ready for prompt injection.
-    # Format: list of {"role": "user"|"assistant", "content": str}
+    # Format: list of OpenAI-compatible message dicts (role + content).
     # Older turns are compressed to single-line summaries by context_manager.
-    conversation_history: list[dict]
+    conversation_history: list[ChatCompletionMessageParam]
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +127,8 @@ class AgentState(TypedDict):
 def make_initial_state(
     question: str,
     dataframe_pickle_path: str,
-    conversation_history: Optional[list[dict]] = None,
+    profile: DataProfile,
+    conversation_history: Optional[list[ChatCompletionMessageParam]] = None,
 ) -> AgentState:
     """
     Create a fresh AgentState for a new question.
@@ -128,6 +142,9 @@ def make_initial_state(
         The user's natural language question.
     dataframe_pickle_path:
         Absolute path to the pickled DataFrame. Must exist on disk.
+    profile:
+        DataProfile for the loaded dataset. Generated once per dataset
+        load (by DataProfiler) and reused across all turns in that session.
     conversation_history:
         Compressed conversation history from context_manager.
         Pass None or [] for the first turn.
@@ -135,6 +152,7 @@ def make_initial_state(
     return AgentState(
         question=question,
         dataframe_pickle_path=dataframe_pickle_path,
+        profile=profile,
         generated_code="",
         execution_result=None,
         validation_outcome=None,

@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from openai.types.chat import ChatCompletionMessageParam
+
 from src.agent.tools.code_executor import ALLOWED_MODULES
 from src.ingestion.profiler import DataProfile
 
@@ -240,8 +242,8 @@ class PromptBuilder:
     def build_messages(
         self,
         question: str,
-        conversation_history: Optional[list[dict]] = None,
-    ) -> list[dict]:
+        conversation_history: Optional[list[ChatCompletionMessageParam]] = None,
+    ) -> list[ChatCompletionMessageParam]:
         """
         Build the messages list for the LLM call.
 
@@ -260,12 +262,12 @@ class PromptBuilder:
 
         Returns
         -------
-        list[dict]
+        list[ChatCompletionMessageParam]
             Messages list ready to pass to the LLM.
         """
         conversation_history = conversation_history or []
 
-        messages = list(conversation_history)
+        messages: list[ChatCompletionMessageParam] = list(conversation_history)
         messages.append({"role": "user", "content": question})
 
         return messages
