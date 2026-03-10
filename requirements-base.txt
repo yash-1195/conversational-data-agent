@@ -26,3 +26,6 @@ langchain-core==1.2.16
 langchain-openai==1.1.10
 langgraph==1.0.9
 openai==2.24.0
+
+# Frontend
+streamlit==1.55.0
