@@ -60,6 +60,13 @@ class DataConfig(BaseModel):
     on_violation: OnViolation
 
 
+class UIConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    preview_rows: int = Field(gt=0)
+    max_chat_history_display: int = Field(gt=0)
+    plot_dir: str
+
+
 class AppConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
     llm: LLMConfig
@@ -67,6 +74,7 @@ class AppConfig(BaseModel):
     execution: ExecutionConfig
     logging: LoggingConfig
     data: DataConfig
+    ui: UIConfig
 
 
 def load_config(path: str = "configs/config.yaml") -> AppConfig:

@@ -22,3 +22,8 @@ data:
   max_upload_size_mb: 50
   max_row_limit: 500000
   on_violation: "reject"
+
+ui:
+  preview_rows: 10
+  max_chat_history_display: 50
+  plot_dir: "outputs/plots"

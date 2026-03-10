@@ -60,7 +60,7 @@ Usage
 
     config = load_config()
     client = LLMClient(config.llm)
-    graph  = build_graph(client=client, config=config)
+    graph  = build_graph(client=client, config=config, plot_dir=config.ui.plot_dir)
 
     state  = make_initial_state(
         question="What is total revenue by region?",
@@ -168,9 +168,10 @@ class GraphNodes:
         agent.max_plan_attempts from it.
     """
 
-    def __init__(self, client: LLMClient, config: AppConfig) -> None:
+    def __init__(self, client: LLMClient, config: AppConfig, plot_dir: str = "outputs/plots") -> None:
         self._client = client
         self._config = config
+        self._plot_dir = plot_dir
         self._builder = PromptBuilder()
         self._clarification_tool = ClarificationTool()
         self._validator = OutputValidator()
@@ -345,7 +346,7 @@ class GraphNodes:
         output = self._formatter.format(
             result=execution_result.result,
             profile=state["profile"],
-            plot_dir="outputs/plots",
+            plot_dir=self._plot_dir,
         )
 
         final_answer = output.content
@@ -363,7 +364,11 @@ class GraphNodes:
 # Graph factory
 # ---------------------------------------------------------------------------
 
-def build_graph(client: LLMClient, config: AppConfig) -> CompiledStateGraph:
+def build_graph(
+    client: LLMClient,
+    config: AppConfig,
+    plot_dir: str = "outputs/plots",
+) -> CompiledStateGraph:
     """
     Build and compile the agent StateGraph.
 
@@ -376,13 +381,18 @@ def build_graph(client: LLMClient, config: AppConfig) -> CompiledStateGraph:
         Initialised LLMClient instance.
     config:
         Full AppConfig loaded from configs/config.yaml.
+    plot_dir:
+        Directory where plot PNGs are saved. Created on demand by
+        OutputFormatter. Defaults to "outputs/plots" relative to cwd.
+        Pass an absolute path (e.g. from config.ui.plot_dir) for
+        deterministic output locations across environments.
 
     Returns
     -------
     CompiledStateGraph
         The compiled LangGraph graph. Call .invoke(state) to run it.
     """
-    nodes = GraphNodes(client=client, config=config)
+    nodes = GraphNodes(client=client, config=config, plot_dir=plot_dir)
 
     workflow: StateGraph = StateGraph(AgentState)
 
