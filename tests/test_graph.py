@@ -394,6 +394,7 @@ class TestRespondNode:
         updates = nodes.respond(state)
         assert updates["final_answer"] == "Which date range?"
         assert updates["answer_type"] == "clarification"
+        assert updates["plot_path"] is None
 
     def test_error_path_returns_user_message_and_error_type(self):
         nodes = self._nodes()
@@ -405,6 +406,7 @@ class TestRespondNode:
         updates = nodes.respond(state)
         assert "Something went wrong." in updates["final_answer"]
         assert updates["answer_type"] == "error"
+        assert updates["plot_path"] is None
 
     def test_success_path_converts_result_to_string(self):
         nodes = self._nodes()
@@ -417,6 +419,7 @@ class TestRespondNode:
         updates = nodes.respond(state)
         assert updates["final_answer"] == "42"
         assert updates["answer_type"] == "text"
+        assert updates["plot_path"] is None
 
     def test_success_path_without_execution_result_raises(self):
         nodes = self._nodes()
@@ -474,6 +477,7 @@ class TestGraphIntegration:
         assert result["final_answer"] is not None
         assert result["answer_type"] == "text"
         assert result["final_answer"] == "60"  # sum of [10, 20, 30]
+        assert result["plot_path"] is None  # scalar result, no plot
 
     def test_happy_path_attempt_count_is_zero(self, df_pickle: str):
         """A clean first-pass execution should require no retries."""
@@ -500,6 +504,7 @@ class TestGraphIntegration:
 
         assert result["answer_type"] == "clarification"
         assert result["final_answer"] == "Which column?"
+        assert result["plot_path"] is None
         client.call.assert_not_called()
 
     def test_exhausted_retry_produces_error_answer(self, df_pickle: str):
@@ -520,3 +525,4 @@ class TestGraphIntegration:
         assert result["attempt_count"] == 2  # incremented twice by evaluate
         # LLM was called once per attempt (2 total)
         assert client.call.call_count == 2
+        assert result["plot_path"] is None

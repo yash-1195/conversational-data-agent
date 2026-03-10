@@ -38,10 +38,11 @@ evaluate  — validates the execution result (OutputValidator). On failure,
 respond   — formats the final answer. Handles three paths:
               1. clarification  — surfaces clarifying_question to the user
               2. error          — formats the exhausted-retry error message
-              3. success        — formats the execution result
-            NOTE: success formatting is a placeholder for Phase 3.
-            Phase 3 will replace the str() call with a full type dispatcher
-            (table → formatted DataFrame, plot → image path, text → scalar).
+              3. success        — dispatches result to OutputFormatter:
+                   DataFrame/Series → markdown table
+                   matplotlib/plotly Figure → saved PNG path
+                   scalar/str/numpy scalar → plain text
+                 Data-quality caveats are appended when relevant.
 
 MLflow logging
 --------------
@@ -82,6 +83,7 @@ from src.agent.clarification import ClarificationTool
 from src.agent.prompt_builder import PromptBuilder
 from src.agent.state import AgentState
 from src.agent.tools.code_executor import execute_code
+from src.agent.output_formatter import OutputFormatter
 from src.agent.validators.output_validator import OutputValidator
 from src.core.config_loader import AppConfig
 from src.core.llm_client import LLMClient
@@ -172,6 +174,7 @@ class GraphNodes:
         self._builder = PromptBuilder()
         self._clarification_tool = ClarificationTool()
         self._validator = OutputValidator()
+        self._formatter = OutputFormatter()
 
     # ------------------------------------------------------------------
     # Node: plan
@@ -302,20 +305,20 @@ class GraphNodes:
           2. Error — retries exhausted without a valid result.
              final_answer = the last ValidationOutcome user_message.
           3. Success — execution produced a valid result.
-             final_answer = str(result) as a placeholder.
-
-        NOTE (Phase 3): the success path currently returns str(result)
-        for all result types. Phase 3 will replace this with a full type
-        dispatcher: DataFrame → formatted table string, matplotlib Figure
-        → saved image path, scalar/string → formatted text. The answer_type
-        field will also be set correctly per type rather than defaulting
-        to "text".
+             OutputFormatter dispatches by result type:
+               DataFrame/Series  → markdown table, answer_type = "table"
+               matplotlib/plotly  → PNG path,        answer_type = "plot"
+               scalar/str/numpy  → plain text,       answer_type = "text"
+             Data-quality caveats are appended when relevant.
+             plot_path is set for plot results so the caller can log
+             the PNG artifact to MLflow without re-parsing final_answer.
         """
         # Path 1: clarification
         if state["needs_clarification"]:
             return {
                 "final_answer": state["clarifying_question"],
                 "answer_type": "clarification",
+                "plot_path": None,
             }
 
         # Path 2: error (retries exhausted)
@@ -329,18 +332,30 @@ class GraphNodes:
                     "Please try rephrasing your question."
                 ),
                 "answer_type": "error",
+                "plot_path": None,
             }
 
         # Path 3: success
-        # Phase 3 replaces str() with a proper type dispatcher.
         execution_result = state["execution_result"]
         if execution_result is None:
             raise RuntimeError(
                 "respond reached success path but execution_result is None"
             )
+
+        output = self._formatter.format(
+            result=execution_result.result,
+            profile=state["profile"],
+            plot_dir="outputs/plots",
+        )
+
+        final_answer = output.content
+        if output.caveat:
+            final_answer = final_answer + "\n\n" + output.caveat
+
         return {
-            "final_answer": str(execution_result.result),
-            "answer_type": "text",
+            "final_answer": final_answer,
+            "answer_type": output.answer_type,
+            "plot_path": output.plot_path,
         }
 
 

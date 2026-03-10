@@ -110,6 +110,11 @@ class AgentState(TypedDict):
     # Used for MLflow logging and ContextManager compression prefix.
     answer_type: Literal["table", "plot", "text", "error", "clarification", ""]
 
+    # Absolute path to the saved plot PNG (plot results only).
+    # None for table, text, error, and clarification results.
+    # Set by the respond node; read by the caller for MLflow artifact logging.
+    plot_path: Optional[str]
+
     # ------------------------------------------------------------------
     # Context (managed by context_manager, injected into prompt_builder)
     # ------------------------------------------------------------------
@@ -162,5 +167,6 @@ def make_initial_state(
         clarifying_question="",
         final_answer=None,
         answer_type="",
+        plot_path=None,
         conversation_history=conversation_history or [],
     )
