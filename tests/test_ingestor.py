@@ -9,7 +9,7 @@ import pytest
 from src.ingestion.ingestor import DataIngestor, IngestionError
 from src.core.config_loader import (
     AppConfig, DataConfig, LLMConfig, AgentConfig,
-    ExecutionConfig, LoggingConfig, Verbosity, OnViolation,
+    ExecutionConfig, LoggingConfig, UIConfig, Verbosity, OnViolation,
 )
 
 
@@ -40,6 +40,11 @@ def _make_config(
             max_upload_size_mb=max_upload_size_mb,
             max_row_limit=max_row_limit,
             on_violation=OnViolation.REJECT,
+        ),
+        ui=UIConfig(
+            preview_rows=10,
+            max_chat_history_display=50,
+            plot_dir="outputs/plots",
         ),
     )
 

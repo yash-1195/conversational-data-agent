@@ -111,9 +111,7 @@ def _question_implies_plot(question: str) -> bool:
 
 
 def _is_scalar(value: Any) -> bool:
-    return isinstance(value, (int, float, str, bool)) or (
-        hasattr(value, "item")  # numpy scalar
-    )
+    return isinstance(value, (int, float, str, bool)) or isinstance(value, np.generic)
 
 
 def _is_empty(value: Any) -> bool:
